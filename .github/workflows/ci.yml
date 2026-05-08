@@ -70,6 +70,7 @@ jobs:
             libnspr4 \
             libnss3 \
             libpango-1.0-0 \
+            libpng-dev \
             libx11-dev \
             libx11-xcb1 \
             libxcb1 \
@@ -123,8 +124,6 @@ jobs:
         include:
           - node-version: "24"
             architecture: x64
-          - node-version: "24"
-            architecture: x86
           - node-version: "25"
             architecture: x64
 
