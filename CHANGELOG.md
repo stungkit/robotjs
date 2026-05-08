@@ -1,3 +1,12 @@
+## 0.7.1 (2026-05-08)
+
+* fix: Add MMBitmap buffer-cleanup callback used by Windows screen capture. ([92504c3](https://github.com/octalmage/robotjs/commit/92504c3))
+* fix: Correct scroll directions on Windows. ([7e57d6d](https://github.com/octalmage/robotjs/commit/7e57d6d))
+* fix: Send a complete Unicode key press so repeated characters do not get dropped. ([31332c5](https://github.com/octalmage/robotjs/commit/31332c5))
+* fix: Use sRGB color space for screen capture. ([17db161](https://github.com/octalmage/robotjs/commit/17db161))
+* fix: Keep UTF-8 strings alive. ([1c7ece7](https://github.com/octalmage/robotjs/commit/1c7ece7)), closes [#789](https://github.com/octalmage/robotjs/issues/789)
+
+
 ## 0.7.0 (2026-03-11)
 
 * build: Bump prebuild version and MACOSX_DEPLOYMENT_TARGET. ([7bcd7ff](https://github.com/octalmage/robotjs/commit/7bcd7ff))
