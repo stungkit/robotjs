@@ -47,4 +47,19 @@ describe('Integration/Keyboard', () => {
 		robot.mouseClick();
 		robot.typeString(stringToType);
 	});
+
+	// Regression for https://github.com/octalmage/robotjs/issues/789
+	// keyTap("tab") and other multi-character key names threw "Invalid key code specified".
+	it('keyTap accepts multi-character key names', () => {
+		const input_1 = elements.input_1;
+		robot.moveMouse(input_1.x, input_1.y);
+		robot.mouseClick();
+
+		const keys = ['tab', 'escape', 'space', 'enter', 'backspace', 'home', 'end'];
+		for (let i = 0; i < 10; i++) {
+			for (const key of keys) {
+				expect(() => robot.keyTap(key)).not.toThrow();
+			}
+		}
+	});
 });
