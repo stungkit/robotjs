@@ -10,6 +10,7 @@
 	#import <IOKit/hidsystem/ev_keymap.h>
 #elif defined(USE_X11)
 	#include <X11/extensions/XTest.h>
+	#include <X11/XKBlib.h>
 	#include "xdisplay.h"
 #endif
 
@@ -165,6 +166,7 @@ void toggleKeyCode(MMKeyCode code, const bool down, MMKeyFlags flags)
 		if (flags & MOD_ALT) X_KEY_EVENT_WAIT(display, K_ALT, is_press);
 		if (flags & MOD_CONTROL) X_KEY_EVENT_WAIT(display, K_CONTROL, is_press);
 		if (flags & MOD_SHIFT) X_KEY_EVENT_WAIT(display, K_SHIFT, is_press);
+		if (flags & MOD_ALTGR) X_KEY_EVENT_WAIT(display, XK_ISO_Level3_Shift, is_press);
 
 		X_KEY_EVENT_WAIT(display, code, is_press);
 	} else {
@@ -172,6 +174,7 @@ void toggleKeyCode(MMKeyCode code, const bool down, MMKeyFlags flags)
 		X_KEY_EVENT_WAIT(display, code, is_press);
 
 		/* Parse modifier keys. */
+		if (flags & MOD_ALTGR) X_KEY_EVENT(display, XK_ISO_Level3_Shift, is_press);
 		if (flags & MOD_META) X_KEY_EVENT(display, K_META, is_press);
 		if (flags & MOD_ALT) X_KEY_EVENT(display, K_ALT, is_press);
 		if (flags & MOD_CONTROL) X_KEY_EVENT(display, K_CONTROL, is_press);
@@ -205,6 +208,32 @@ void toggleKey(char c, const bool down, MMKeyFlags flags)
     if ((modifiers & 2) != 0) flags |= MOD_CONTROL;
     if ((modifiers & 4) != 0) flags |= MOD_ALT;
     keyCode = keyCode & 0xff; // Mask out modifiers.
+#elif defined(USE_X11)
+	{
+		/* Determine which modifier(s) the current keyboard layout requires to
+		 * produce this keysym.  We check all four XKB levels:
+		 *   0 = no modifier, 1 = Shift, 2 = AltGr, 3 = AltGr+Shift
+		 * This covers symbols like @, !, #, $ (Shift on US) as well as
+		 * characters like €, @, \ that sit behind AltGr on many EU layouts. */
+		Display *display = XGetMainDisplay();
+		KeyCode kc = XKeysymToKeycode(display, keyCode);
+		if (kc != 0) {
+			KeySym ks_normal      = XkbKeycodeToKeysym(display, kc, 0, 0);
+			KeySym ks_shift       = XkbKeycodeToKeysym(display, kc, 0, 1);
+			KeySym ks_altgr       = XkbKeycodeToKeysym(display, kc, 0, 2);
+			KeySym ks_altgr_shift = XkbKeycodeToKeysym(display, kc, 0, 3);
+
+			if (ks_normal != (KeySym)keyCode) {
+				if (ks_shift == (KeySym)keyCode) {
+					flags |= MOD_SHIFT;
+				} else if (ks_altgr != NoSymbol && ks_altgr == (KeySym)keyCode) {
+					flags |= MOD_ALTGR;
+				} else if (ks_altgr_shift != NoSymbol && ks_altgr_shift == (KeySym)keyCode) {
+					flags |= MOD_ALTGR | MOD_SHIFT;
+				}
+			}
+		}
+	}
 #endif
 	toggleKeyCode(keyCode, down, flags);
 }
