@@ -16,10 +16,6 @@
 int mouseDelay = 10;
 int keyboardDelay = 10;
 
-#if defined(IS_MACOSX)
-static const unsigned MACOS_TYPE_STRING_DEFAULT_CPM = 1000;
-#endif
-
 /*
  __  __
 |  \/  | ___  _   _ ___  ___
@@ -512,13 +508,6 @@ Napi::Value keyTapWrapper(const Napi::CallbackInfo& info)
 
 	MMKeyFlags flags = MOD_NONE;
 	MMKeyCode key;
-
-	if (info.Length() < 1 || info.Length() > 2)
-	{
-		Napi::Error::New(env, "Invalid number of arguments.").ThrowAsJavaScriptException();
-return env.Null();
-	}
-
 	std::string kstr = info[0].ToString().Utf8Value();
 	const char *k = kstr.c_str();
 
@@ -539,6 +528,9 @@ return env.Null();
 			break;
 		case 1:
 			break;
+		default:
+			Napi::Error::New(env, "Invalid number of arguments.").ThrowAsJavaScriptException();
+return env.Null();
 	}
 
 	switch(CheckKeyCodes(k, &key))
@@ -677,11 +669,7 @@ Napi::Value typeStringWrapper(const Napi::CallbackInfo& info)
 
 		s = str.c_str();
 
-		#if defined(IS_MACOSX)
-			typeStringDelayed(s, MACOS_TYPE_STRING_DEFAULT_CPM);
-		#else
-			typeStringDelayed(s, 0);
-		#endif
+		typeStringDelayed(s, 0);
 
 		return Napi::Number::New(env, 1);
 	} else {

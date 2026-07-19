@@ -49,29 +49,6 @@ static io_connect_t _getAuxiliaryKeyDriver(void)
 	}
 	return sEventDrvrRef;
 }
-
-static IOOptionBits nxEventFlagsForMMKeyFlags(MMKeyFlags flags)
-{
-	IOOptionBits nxFlags = 0;
-
-	if (flags & MOD_META) nxFlags |= NX_COMMANDMASK;
-	if (flags & MOD_ALT) nxFlags |= NX_ALTERNATEMASK;
-	if (flags & MOD_CONTROL) nxFlags |= NX_CONTROLMASK;
-	if (flags & MOD_SHIFT) nxFlags |= NX_SHIFTMASK;
-
-	return nxFlags;
-}
-
-static IOOptionBits nxEventFlagsForModifierKeyCode(MMKeyCode code)
-{
-	if (code == K_META) return NX_COMMANDMASK;
-	if (code == K_ALT || code == K_RIGHT_ALT) return NX_ALTERNATEMASK;
-	if (code == K_CONTROL || code == K_LEFT_CONTROL || code == K_RIGHT_CONTROL) return NX_CONTROLMASK;
-	if (code == K_SHIFT || code == K_RIGHTSHIFT) return NX_SHIFTMASK;
-	if (code == K_CAPSLOCK) return NX_ALPHASHIFTMASK;
-
-	return 0;
-}
 #endif
 
 #if defined(IS_WINDOWS)
@@ -149,33 +126,21 @@ void toggleKeyCode(MMKeyCode code, const bool down, MMKeyFlags flags)
 		kr = IOHIDPostEvent( _getAuxiliaryKeyDriver(), NX_SYSDEFINED, loc, &event, kNXEventDataVersion, 0, FALSE );
 		assert( KERN_SUCCESS == kr );
 	} else {
-		kern_return_t kr;
-		IOGPoint loc = { 0, 0 };
-		NXEventData event;
-		IOOptionBits eventFlags;
+		CGEventFlags eventFlags = (CGEventFlags)flags;
+		CGEventRef keyEvent = CGEventCreateKeyboardEvent(NULL,
+		                                                 (CGKeyCode)code, down);
+		assert(keyEvent != NULL);
 
-		bzero(&event, sizeof(NXEventData));
-		event.key.repeat = FALSE;
-		event.key.charCode = 0;
-		event.key.charSet = 0;
-		event.key.origCharCode = 0;
-		event.key.origCharSet = 0;
-		event.key.keyboardType = 0;
-		event.key.keyCode = (UInt16)code;
-
-		eventFlags = nxEventFlagsForMMKeyFlags(flags);
-		if (down) {
-			eventFlags |= nxEventFlagsForModifierKeyCode(code);
+		/* Hardware arrow-key events carry this flag. Mission Control ignores
+		 * synthetic Control+Arrow shortcuts without it. */
+		if (code == K_UP || code == K_DOWN || code == K_LEFT || code == K_RIGHT) {
+			eventFlags |= kCGEventFlagMaskSecondaryFn;
 		}
 
-		kr = IOHIDPostEvent(_getAuxiliaryKeyDriver(),
-		                    down ? NX_KEYDOWN : NX_KEYUP,
-		                    loc,
-		                    &event,
-		                    kNXEventDataVersion,
-		                    eventFlags,
-		                    kIOHIDSetGlobalEventFlags);
-		assert(KERN_SUCCESS == kr);
+		CGEventSetType(keyEvent, down ? kCGEventKeyDown : kCGEventKeyUp);
+		CGEventSetFlags(keyEvent, eventFlags);
+		CGEventPost(kCGSessionEventTap, keyEvent);
+		CFRelease(keyEvent);
 	}
 #elif defined(IS_WINDOWS)
 	const DWORD dwFlags = down ? 0 : KEYEVENTF_KEYUP;
@@ -312,7 +277,7 @@ void toggleUnicode(UniChar ch, const bool down)
 		CGEventKeyboardSetUnicodeString(keyEvent, 1, (UniChar*) &ch);
 	}
 
-	CGEventPost(kCGHIDEventTap, keyEvent);
+	CGEventPost(kCGSessionEventTap, keyEvent);
 	CFRelease(keyEvent);
 }
 #elif defined(USE_X11)
