@@ -126,12 +126,19 @@ void toggleKeyCode(MMKeyCode code, const bool down, MMKeyFlags flags)
 		kr = IOHIDPostEvent( _getAuxiliaryKeyDriver(), NX_SYSDEFINED, loc, &event, kNXEventDataVersion, 0, FALSE );
 		assert( KERN_SUCCESS == kr );
 	} else {
+		CGEventFlags eventFlags = (CGEventFlags)flags;
 		CGEventRef keyEvent = CGEventCreateKeyboardEvent(NULL,
 		                                                 (CGKeyCode)code, down);
 		assert(keyEvent != NULL);
 
+		/* Hardware arrow-key events carry this flag. Mission Control ignores
+		 * synthetic Control+Arrow shortcuts without it. */
+		if (code == K_UP || code == K_DOWN || code == K_LEFT || code == K_RIGHT) {
+			eventFlags |= kCGEventFlagMaskSecondaryFn;
+		}
+
 		CGEventSetType(keyEvent, down ? kCGEventKeyDown : kCGEventKeyUp);
-		CGEventSetFlags(keyEvent, flags);
+		CGEventSetFlags(keyEvent, eventFlags);
 		CGEventPost(kCGSessionEventTap, keyEvent);
 		CFRelease(keyEvent);
 	}
