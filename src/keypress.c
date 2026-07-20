@@ -49,6 +49,24 @@ static io_connect_t _getAuxiliaryKeyDriver(void)
 	}
 	return sEventDrvrRef;
 }
+
+static void postMacKeyEvent(MMKeyCode code, const bool down, CGEventFlags flags)
+{
+	CGEventRef keyEvent = CGEventCreateKeyboardEvent(NULL,
+	                                                 (CGKeyCode)code, down);
+	assert(keyEvent != NULL);
+
+	/* Hardware arrow-key events carry this flag. Mission Control ignores
+	 * synthetic Control+Arrow shortcuts without it. */
+	if (code == K_UP || code == K_DOWN || code == K_LEFT || code == K_RIGHT) {
+		flags |= kCGEventFlagMaskSecondaryFn;
+	}
+
+	CGEventSetType(keyEvent, down ? kCGEventKeyDown : kCGEventKeyUp);
+	CGEventSetFlags(keyEvent, flags);
+	CGEventPost(kCGSessionEventTap, keyEvent);
+	CFRelease(keyEvent);
+}
 #endif
 
 #if defined(IS_WINDOWS)
@@ -125,22 +143,51 @@ void toggleKeyCode(MMKeyCode code, const bool down, MMKeyFlags flags)
 		event.compound.misc.L[0] = evtInfo;
 		kr = IOHIDPostEvent( _getAuxiliaryKeyDriver(), NX_SYSDEFINED, loc, &event, kNXEventDataVersion, 0, FALSE );
 		assert( KERN_SUCCESS == kr );
-	} else {
-		CGEventFlags eventFlags = (CGEventFlags)flags;
-		CGEventRef keyEvent = CGEventCreateKeyboardEvent(NULL,
-		                                                 (CGKeyCode)code, down);
-		assert(keyEvent != NULL);
+	} else if (down) {
+		CGEventFlags activeFlags = 0;
 
-		/* Hardware arrow-key events carry this flag. Mission Control ignores
-		 * synthetic Control+Arrow shortcuts without it. */
-		if (code == K_UP || code == K_DOWN || code == K_LEFT || code == K_RIGHT) {
-			eventFlags |= kCGEventFlagMaskSecondaryFn;
+		/* Post real modifier events around the key. Chromium and other apps
+		 * ignore bare flag bits for some shortcuts, and explicit key-up events
+		 * prevent the modifier from remaining active after the key tap. */
+		if (flags & MOD_META) {
+			activeFlags |= kCGEventFlagMaskCommand;
+			postMacKeyEvent(K_META, true, activeFlags);
+		}
+		if (flags & MOD_ALT) {
+			activeFlags |= kCGEventFlagMaskAlternate;
+			postMacKeyEvent(K_ALT, true, activeFlags);
+		}
+		if (flags & MOD_CONTROL) {
+			activeFlags |= kCGEventFlagMaskControl;
+			postMacKeyEvent(K_CONTROL, true, activeFlags);
+		}
+		if (flags & MOD_SHIFT) {
+			activeFlags |= kCGEventFlagMaskShift;
+			postMacKeyEvent(K_SHIFT, true, activeFlags);
 		}
 
-		CGEventSetType(keyEvent, down ? kCGEventKeyDown : kCGEventKeyUp);
-		CGEventSetFlags(keyEvent, eventFlags);
-		CGEventPost(kCGSessionEventTap, keyEvent);
-		CFRelease(keyEvent);
+		postMacKeyEvent(code, true, (CGEventFlags)flags);
+	} else {
+		CGEventFlags activeFlags = (CGEventFlags)flags;
+
+		postMacKeyEvent(code, false, activeFlags);
+
+		if (flags & MOD_SHIFT) {
+			activeFlags &= ~kCGEventFlagMaskShift;
+			postMacKeyEvent(K_SHIFT, false, activeFlags);
+		}
+		if (flags & MOD_CONTROL) {
+			activeFlags &= ~kCGEventFlagMaskControl;
+			postMacKeyEvent(K_CONTROL, false, activeFlags);
+		}
+		if (flags & MOD_ALT) {
+			activeFlags &= ~kCGEventFlagMaskAlternate;
+			postMacKeyEvent(K_ALT, false, activeFlags);
+		}
+		if (flags & MOD_META) {
+			activeFlags &= ~kCGEventFlagMaskCommand;
+			postMacKeyEvent(K_META, false, activeFlags);
+		}
 	}
 #elif defined(IS_WINDOWS)
 	const DWORD dwFlags = down ? 0 : KEYEVENTF_KEYUP;
